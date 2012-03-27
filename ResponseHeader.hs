@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main(main) where
+module ResponseHeader(main) where
 
 import Network.Wai
 import Network.HTTP.Types (status200)
