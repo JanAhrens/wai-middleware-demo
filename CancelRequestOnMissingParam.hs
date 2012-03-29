@@ -2,17 +2,15 @@
 
 module CancelRequestOnMissingParameter(main) where
 
-import Network.Wai (Request(..), Response(..), responseLBS)
-import Network.HTTP.Types (statusOK, statusPreconditionFailed)
-import Control.Monad.IO.Class (liftIO)
-import Network.Wai.Parse (getRequestBodyType, sinkRequestBody, lbsBackEnd, fileName, Param, File)
-import Network.Wai.Handler.Warp (run)
-import Network.Wai.Middleware.RequestLogger
-
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
+import Control.Monad.IO.Class (liftIO)
+import Network.Wai (Request(..), Response(..), responseLBS)
+import Network.Wai.Handler.Warp (run)
+import Network.Wai.Parse (getRequestBodyType, sinkRequestBody, lbsBackEnd, fileName, Param, File)
+import Network.HTTP.Types (statusOK, statusPreconditionFailed)
 
 main = run 3000 (requireParameter ("version", "1") application)
 
@@ -28,7 +26,6 @@ requireParameter requiredParameter app env = do
     Just _  -> app env { requestBody = CL.sourceList body }
     Nothing -> return $
       responseLBS statusPreconditionFailed [("Content-Type", "application/json")] "{\"code\": \"PARAMETER_MISSING\"}"
-
   where
     parameterPresent (paramName, paramValue) params = do
       result <- lookup paramName params
@@ -37,19 +34,15 @@ requireParameter requiredParameter app env = do
         else Nothing
     extractBody env = requestBody env C.$$ CL.consume
 
--- yes, this is too complicated *sigh*
 extractPostParams env body =
   if requestMethod env `elem` ["GET", "HEAD"]
     then return []
     else do postParams <- liftIO $ allPostParams body
             return $ collectPostParams postParams
   where
-    allPostParams body =
-        case getRequestBodyType env of
-            Nothing  -> return ([], [])
-            Just rbt -> C.runResourceT $ CL.sourceList body C.$$ sinkRequestBody lbsBackEnd rbt
-
-    collectPostParams :: ([Param], [File LBS.ByteString]) -> [Param]
+    allPostParams body = case getRequestBodyType env of
+      Nothing  -> return ([], [])
+      Just rbt -> C.runResourceT $ CL.sourceList body C.$$ sinkRequestBody lbsBackEnd rbt
     collectPostParams (postParams, files) = postParams ++
       map (\(k,v) -> (k, BS.append "FILE: " (fileName v))) files
 
